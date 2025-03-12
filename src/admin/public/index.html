@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drogasil - Painel de Atendimento</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f5f5f5;
+      }
+      .login-container {
+        max-width: 400px;
+        margin: 100px auto;
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .chat-container {
+        height: calc(100vh - 160px);
+        display: none;
+      }
+      .sidebar {
+        background-color: white;
+        border-right: 1px solid #dee2e6;
+        height: 100%;
+        overflow-y: auto;
+      }
+      .chat-window {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background-color: white;
+      }
+      .messages-area {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background-color: #f5f5f5;
+      }
+      .message {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        max-width: 80%;
+        word-break: break-word;
+      }
+      .client-message {
+        background-color: #e8e8e8;
+        align-self: flex-start;
+      }
+      .agent-message {
+        background-color: #d1e7dd;
+        align-self: flex-end;
+        margin-left: auto;
+      }
+      .client-list-item {
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      .client-list-item:hover {
+        background-color: #f8f9fa;
+      }
+      .client-list-item.active {
+        background-color: #e9ecef;
+      }
+      .brand-logo {
+        color: #e41e26;
+        font-weight: bold;
+      }
+      .agent-name-prefix {
+        font-weight: bold;
+        color: #0d6efd;
+      }
+      .message-time {
+        font-size: 0.7rem;
+        color: #6c757d;
+        display: block;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Login Form -->
+    <div id="login-form" class="login-container">
+      <div class="text-center mb-4">
+        <h2 class="brand-logo">Drogasil</h2>
+        <h4>Painel de Atendimento</h4>
+      </div>
+      <div class="mb-3">
+        <label for="agent-name" class="form-label">Nome do Atendente</label>
+        <input
+          type="text"
+          class="form-control"
+          id="agent-name"
+          placeholder="Seu nome completo"
+        />
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Senha</label>
+        <input type="password" class="form-control" id="password" />
+      </div>
+      <button id="login-button" class="btn btn-primary w-100">Entrar</button>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-interface" class="container-fluid chat-container">
+      <div class="row p-3">
+        <div class="col-12">
+          <h4 class="brand-logo">Drogasil - Atendimento</h4>
+          <p class="mb-0">Atendente: <span id="current-agent-name"></span></p>
+        </div>
+      </div>
+      <div class="row chat-container">
+        <!-- Sidebar - Client List -->
+        <div class="col-md-4 sidebar p-0">
+          <div class="p-3 border-bottom">
+            <h5>Clientes Aguardando</h5>
+          </div>
+          <ul id="clients-list" class="list-group list-group-flush">
+            <!-- Clients will be added here dynamically -->
+          </ul>
+        </div>
+
+        <!-- Main Chat Window -->
+        <div class="col-md-8 chat-window">
+          <!-- No Client Selected Message -->
+          <div
+            id="no-client-message"
+            class="d-flex align-items-center justify-content-center h-100"
+          >
+            <p class="text-muted">
+              Selecione um cliente para iniciar o atendimento
+            </p>
+          </div>
+
+          <!-- Active Chat -->
+          <div
+            id="active-chat"
+            style="display: none"
+            class="d-flex flex-column h-100"
+          >
+            <div class="p-3 border-bottom">
+              <h5 id="active-client-name">Cliente</h5>
+            </div>
+            <div id="messages-area" class="messages-area d-flex flex-column">
+              <!-- Messages will be added here dynamically -->
+            </div>
+            <div class="p-3 border-top">
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="message-input"
+                  class="form-control"
+                  placeholder="Digite sua mensagem..."
+                />
+                <button id="send-button" class="btn btn-primary">Enviar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      // Variáveis globais
+      let socket;
+      let currentAgentName = "";
+      let activeClientId = null;
+
+      // Elementos DOM
+      const loginForm = document.getElementById("login-form");
+      const chatInterface = document.getElementById("chat-interface");
+      const agentNameInput = document.getElementById("agent-name");
+      const passwordInput = document.getElementById("password");
+      const loginButton = document.getElementById("login-button");
+      const currentAgentNameSpan =
+        document.getElementById("current-agent-name");
+      const clientsList = document.getElementById("clients-list");
+      const noClientMessage = document.getElementById("no-client-message");
+      const activeChat = document.getElementById("active-chat");
+      const activeClientName = document.getElementById("active-client-name");
+      const messagesArea = document.getElementById("messages-area");
+      const messageInput = document.getElementById("message-input");
+      const sendButton = document.getElementById("send-button");
+
+      // Login
+      loginButton.addEventListener("click", () => {
+        const name = agentNameInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!name) {
+          alert("Por favor, insira seu nome");
+          return;
+        }
+
+        // Em um ambiente real, enviar para o servidor para autenticação
+        fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, password }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              // Login bem-sucedido
+              currentAgentName = name;
+              currentAgentNameSpan.textContent = name;
+
+              // Mostrar interface de chat
+              loginForm.style.display = "none";
+              chatInterface.style.display = "block";
+
+              // Conectar ao socket
+              connectSocket();
+            } else {
+              alert("Credenciais inválidas");
+            }
+          })
+          .catch((error) => {
+            console.error("Erro ao fazer login:", error);
+            alert("Erro ao conectar. Tente novamente.");
+          });
+      });
+
+      // Conectar ao Socket.IO
+      function connectSocket() {
+        socket = io();
+
+        // Registrar como atendente
+        socket.emit("register-agent", currentAgentName);
+
+        // Receber lista de clientes aguardando
+        socket.on("waiting-clients", (clients) => {
+          updateClientsList(clients);
+        });
+
+        // Receber histórico de chat
+        socket.on("chat-history", (data) => {
+          displayChatHistory(data.clientId, data.history);
+        });
+
+        // Receber nova mensagem de cliente
+        socket.on("new-client-message", (data) => {
+          addMessageToChat(data.clientId, data.message, "client");
+
+          // Destaque se for cliente diferente do ativo
+          if (data.clientId !== activeClientId) {
+            highlightClient(data.clientId);
+          }
+        });
+
+        // Confirmar envio de mensagem
+        socket.on("message-sent", (data) => {
+          // Feedback visual se necessário
+        });
+
+        // Novo cliente disponível
+        socket.on("new-waiting-client", (client) => {
+          addClientToList(client);
+        });
+      }
+
+      // Atualizar lista de clientes
+      function updateClientsList(clients) {
+        clientsList.innerHTML = "";
+        clients.forEach((client) => {
+          addClientToList(client);
+        });
+      }
+
+      // Adicionar cliente à lista
+      function addClientToList(client) {
+        const item = document.createElement("li");
+        item.className = "list-group-item client-list-item";
+        item.dataset.clientId = client.id;
+        item.innerHTML = `
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">Cliente: ${client.id.split("@")[0]}</h6>
+                    <small>${client.waitingSince}</small>
+                </div>
+                <p class="mb-1">Assunto: ${client.topic}</p>
+            `;
+
+        item.addEventListener("click", () => {
+          selectClient(client.id);
+        });
+
+        clientsList.appendChild(item);
+      }
+
+      // Selecionar cliente para atendimento
+      function selectClient(clientId) {
+        // Remover seleção anterior
+        document.querySelectorAll(".client-list-item.active").forEach((el) => {
+          el.classList.remove("active");
+        });
+
+        // Destacar cliente selecionado
+        const clientItem = document.querySelector(
+          `.client-list-item[data-client-id="${clientId}"]`
+        );
+        if (clientItem) {
+          clientItem.classList.add("active");
+        }
+
+        // Atualizar interface
+        activeClientId = clientId;
+        activeClientName.textContent = `Cliente: ${clientId.split("@")[0]}`;
+        noClientMessage.style.display = "none";
+        activeChat.style.display = "flex";
+        messagesArea.innerHTML = "";
+
+        // Informar servidor sobre atendimento
+        socket.emit("take-client", clientId);
+      }
+
+      // Exibir histórico do chat
+      function displayChatHistory(clientId, history) {
+        if (clientId !== activeClientId) return;
+
+        messagesArea.innerHTML = "";
+        history.forEach((msg) => {
+          const from = msg.from === "client" ? "client" : "agent";
+          addMessageToChat(clientId, msg, from);
+        });
+
+        // Rolar para a mensagem mais recente
+        scrollToBottom();
+      }
+
+      // Adicionar mensagem ao chat
+      function addMessageToChat(clientId, message, from) {
+        if (clientId !== activeClientId && from === "agent") return;
+
+        const msgElement = document.createElement("div");
+        msgElement.className = `message ${from}-message`;
+
+        let content = message.content || message;
+        let timestamp = message.timestamp || new Date().toISOString();
+        let formattedTime = new Date(timestamp).toLocaleTimeString();
+
+        if (from === "agent" && message.agentName) {
+          msgElement.innerHTML = `
+                    <span class="agent-name-prefix">${message.agentName}:</span>
+                    <div>${content}</div>
+                    <span class="message-time">${formattedTime}</span>
+                `;
+        } else {
+          msgElement.innerHTML = `
+                    <div>${content}</div>
+                    <span class="message-time">${formattedTime}</span>
+                `;
+        }
+
+        messagesArea.appendChild(msgElement);
+        scrollToBottom();
+      }
+
+      // Rolar para o final do chat
+      function scrollToBottom() {
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+      }
+
+      // Destacar cliente com nova mensagem
+      function highlightClient(clientId) {
+        const clientItem = document.querySelector(
+          `.client-list-item[data-client-id="${clientId}"]`
+        );
+        if (clientItem) {
+          clientItem.style.backgroundColor = "#ffd5d5"; // Destacar temporariamente
+          setTimeout(() => {
+            if (!clientItem.classList.contains("active")) {
+              clientItem.style.backgroundColor = "";
+            }
+          }, 2000);
+        }
+      }
+
+      // Enviar mensagem
+      sendButton.addEventListener("click", sendMessage);
+      messageInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          sendMessage();
+        }
+      });
+
+      function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message || !activeClientId) return;
+
+        // Enviar para o servidor
+        socket.emit("send-message", {
+          clientId: activeClientId,
+          message,
+        });
+
+        // Adicionar ao chat local
+        addMessageToChat(
+          activeClientId,
+          {
+            content: message,
+            timestamp: new Date().toISOString(),
+            agentName: currentAgentName,
+          },
+          "agent"
+        );
+
+        // Limpar campo de entrada
+        messageInput.value = "";
+      }
+    </script>
+  </body>
+</html>
