@@ -1,0 +1,34 @@
+{
+  "name": "whatsapp-bot-drogasil",
+  "version": "1.0.0",
+  "description": "Bot de WhatsApp para atendimento automatizado da Drogasil",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "restart": "node restart.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 10000
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.22.2",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "session.json",
+      "last_qrcode.txt",
+      "user_data/"
+    ]
+  }
+}

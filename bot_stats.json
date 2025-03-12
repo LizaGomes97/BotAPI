@@ -1,0 +1,15 @@
+{
+  "totalChats": 4,
+  "activeChats": 0,
+  "waitingForHuman": 1,
+  "withHuman": 1,
+  "completedChats": 0,
+  "optionCounts": {
+    "1": 4,
+    "2": 0,
+    "3": 0,
+    "4": 0
+  },
+  "startTime": 1741462558546,
+  "lastUpdated": 1741550278449
+}
